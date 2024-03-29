@@ -1,0 +1,4 @@
+# Pyinstaller generated files
+build
+dist
+booster.spec
