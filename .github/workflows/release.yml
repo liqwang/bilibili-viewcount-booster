@@ -1,0 +1,61 @@
+name: release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - v*
+
+# Some actions need extra permissions of the GITHUB_TOKEN:
+# - https://github.com/softprops/action-gh-release#permissions
+# - https://github.com/ad-m/github-push-action#requirements-and-prerequisites
+# Learn more about permissions of the GITHUB_TOKEN:
+# - https://docs.github.com/en/actions/security-guides/automatic-token-authentication#permissions-for-the-github_token
+# - https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#permissions
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      # release = tag + title + description + packages
+      - name: Create release
+        id: create-release
+        uses: softprops/action-gh-release@v1
+
+  upload-binary:
+    needs: create-release
+    strategy:
+      matrix: # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
+        # https://github.com/actions/runner-images#available-images
+        os: [ubuntu-latest, macos-12, macos-14, windows-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux-x64
+          - os: macos-12
+            platform: macos-x64
+          - os: macos-14
+            platform: macos-arm64
+          - os: windows-latest
+            platform: windows-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build binary executable
+        # https://pyinstaller.org/en/stable/usage.html#options
+        # https://github.com/fake-useragent/fake-useragent/issues/155#issuecomment-1336502286
+        # https://github.com/orgs/community/discussions/26686#discussioncomment-3396593
+        run: pyinstaller --onefile --collect-datas=fake_useragent --name booster-${{ github.ref_name }}-${{ matrix.platform }} booster.py
+
+      - name: Upload binary executable
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        uses: alexellis/upload-assets@0.4.0
+        with:
+          asset_paths: '["dist/*"]'
