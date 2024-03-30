@@ -1,3 +1,2 @@
-pyinstaller
 requests
 fake-useragent
