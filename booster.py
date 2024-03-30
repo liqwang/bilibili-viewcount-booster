@@ -41,7 +41,7 @@ print(f'successfully get {len(total_proxies)} proxies')
 # 2.filter proxies by multi-threading
 active_proxies = []
 count = 0
-def filter_proxys(proxies: list[str]) -> None:
+def filter_proxys(proxies: 'list[str]') -> None:
     global count
     for proxy in proxies:
         count = count + 1
