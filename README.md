@@ -1,20 +1,20 @@
 使用[代理池](https://checkerproxy.net/getAllProxy)对目标视频进行轮询点击，视作游客观看，速度约为8播放量/分钟
 
-B站目前限制同一IP对视频点击间隔大于5min，所以代理轮询完后如果不足5min会继续等待
+B站目前(2024-03-30)限制同一IP对视频点击间隔大于5min，所以代理轮询完后如果不足5min会继续等待
 
 <br>
 
 ## 使用方法
 #### 有Python环境
 ```shell
-> git clone https://github.com/QuanQuan-CHO/bilibili-viewcount-booster.git
+> git clone https://github.com/liqwang/bilibili-viewcount-booster.git
 > cd bilibili-viewcount-booster
 > pip install -r requirements.txt
 > python booster.py <BV号> <目标播放数>
 ```
 
 #### 无Python环境
-1. 在[Release界面](https://github.com/QuanQuan-CHO/bilibili-viewcount-booster/releases/latest)下载与系统对应的文件
+1. 在[Release界面](https://github.com/liqwang/bilibili-viewcount-booster/releases/latest)下载与系统对应的文件
 2. 重命名为`booster`(Windows为`booster.exe`)
 3. 在终端中进入所在目录
 ```shell
