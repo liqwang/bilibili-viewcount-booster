@@ -30,12 +30,19 @@ def pbar(n: int, total: int) -> str:
 
 
 # 1.get proxy
-yesterday = (date.today() - timedelta(days=1)).strftime('%Y-%m-%d')
-proxy_url = f'https://checkerproxy.net/api/archive/{yesterday}'
-print(f'\ngetting proxies from {proxy_url} ...')
-proxies_json = requests.get(proxy_url).json()
-total_proxies = [proxy['addr'] for proxy in proxies_json]
-print(f'successfully get {len(total_proxies)} proxies')
+print('\n')
+day = date.today()
+while True:  # search for the latest day with proxies
+    day = day - timedelta(days=1)
+    proxy_url = f'https://checkerproxy.net/api/archive/{day.strftime("%Y-%m-%d")}'
+    print(f'getting proxies from {proxy_url} ...')
+    proxies = requests.get(proxy_url).json()
+    if len(proxies) > 0:
+        total_proxies = [proxy['addr'] for proxy in proxies]
+        print(f'successfully get {len(total_proxies)} proxies')
+        break
+    else:
+        print(f'no proxy')
 
 
 # 2.filter proxies by multi-threading
