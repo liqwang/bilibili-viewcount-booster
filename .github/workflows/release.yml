@@ -29,11 +29,11 @@ jobs:
     strategy:
       matrix: # https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs
         # https://github.com/actions/runner-images#available-images
-        os: [ubuntu-22.04, macos-12, macos-14, windows-2022]
+        os: [ubuntu-22.04, macos-14-large, macos-14, windows-2022]
         include:
           - os: ubuntu-22.04
             platform: linux-x64
-          - os: macos-12
+          - os: macos-14-large
             platform: macos-x64
           - os: macos-14
             platform: macos-arm64
