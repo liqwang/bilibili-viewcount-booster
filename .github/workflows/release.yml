@@ -47,7 +47,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pyinstaller
+          pip install pyinstaller==6.11.1
 
       - name: Build binary executable
         # https://pyinstaller.org/en/stable/usage.html#options
@@ -63,7 +63,7 @@ jobs:
       - name: Bundle glibc into executable for Linux
         if: matrix.platform=='linux-x64'
         run: |
-          pip install staticx
+          pip install staticx==0.14.1
           staticx dist/booster-${{ github.ref_name }}-linux-x64 dist/booster-${{ github.ref_name }}-linux-x64-staticx
           rm dist/booster-${{ github.ref_name }}-linux-x64
           mv dist/booster-${{ github.ref_name }}-linux-x64-staticx dist/booster-${{ github.ref_name }}-linux-x64
