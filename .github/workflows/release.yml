@@ -44,6 +44,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with: # https://github.com/actions/python-versions/blob/main/versions-manifest.json
+          python-version: '3.10.11'
+          cache: 'pip'
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
