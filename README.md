@@ -38,8 +38,15 @@ filtering active proxies using http://httpbin.org/post ...
 successfully filter 165 active proxies using 4min 36s
 
 start boosting BV1fz421o8J7 at 20:27:40
-361/349 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ done                    
-finish at 20:33:04
+Initial view count: 298
+361/349 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ [Hits: 697, Views+: 63] done                    
+Finish at 20:58:00
+Statistics:
+- Initial views: 298
+- Final views: 361
+- Total increase: 63
+- Successful hits: 697
+- Success rate: 43.80%
 ```
 
 <br>
