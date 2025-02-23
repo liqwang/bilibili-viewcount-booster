@@ -1,6 +1,7 @@
 import sys
 import threading
 from time import sleep
+from typing import Optional
 from datetime import date, datetime, timedelta
 
 import requests
@@ -25,10 +26,13 @@ def time(seconds: int) -> str:
     else:
         return f'{int(seconds / 60)}min {seconds % 60}s'
 
-def pbar(n: int, total: int, hits: int, view_increase: int) -> str:
+def pbar(n: int, total: int, hits: Optional[int], view_increase: Optional[int]) -> str:
     progress = '━' * int(n / total * 50)
     blank = ' ' * (50 - len(progress))
-    return f'\r{n}/{total} {progress}{blank} [Hits: {hits}, Views+: {view_increase}]'
+    if hits is None or view_increase is None:
+        return f'\r{n}/{total} {progress}{blank}'
+    else:
+        return f'\r{n}/{total} {progress}{blank} [Hits: {hits}, Views+: {view_increase}]'
 
 # 1.get proxy
 print()
@@ -59,7 +63,7 @@ def filter_proxys(proxies: 'list[str]') -> None:
             active_proxies.append(proxy)
         except:  # proxy connect timeout
             pass
-        print(f'{pbar(count, len(total_proxies), 0, 0)} {100*count/len(total_proxies):.1f}%   ', end='')
+        print(f'{pbar(count, len(total_proxies), hits=None, view_increase=None)} {100*count/len(total_proxies):.1f}%   ', end='')
 
 
 start_filter_time = datetime.now()
