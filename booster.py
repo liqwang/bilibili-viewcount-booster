@@ -31,7 +31,7 @@ def pbar(n: int, total: int, hits: int, view_increase: int) -> str:
     return f'\r{n}/{total} {progress}{blank} [Hits: {hits}, Views+: {view_increase}]'
 
 # 1.get proxy
-print('\n')
+print()
 day = date.today()
 while True:  # search for the latest day with proxies
     day = day - timedelta(days=1)
@@ -61,18 +61,20 @@ def filter_proxys(proxies: 'list[str]') -> None:
             pass
         print(f'{pbar(count, len(total_proxies), 0, 0)} {100*count/len(total_proxies):.1f}%   ', end='')
 
+
 start_filter_time = datetime.now()
 print('\nfiltering active proxies using http://httpbin.org/post ...')
 thread_proxy_num = len(total_proxies) // thread_num
 threads = []
 for i in range(thread_num):
+    # calculate the start and end index of the proxies that this thread needs to process
     start = i * thread_proxy_num
-    end = start + thread_proxy_num if i < (thread_num - 1) else None
+    end = start + thread_proxy_num if i < (thread_num - 1) else None  # the last thread processes the remaining proxies
     thread = threading.Thread(target=filter_proxys, args=(total_proxies[start:end],))
     thread.start()
     threads.append(thread)
 for thread in threads:
-    thread.join()
+    thread.join()  # wait for all threads to finish
 filter_cost_seconds = int((datetime.now()-start_filter_time).total_seconds())
 print(f'\nsuccessfully filter {len(active_proxies)} active proxies using {time(filter_cost_seconds)}')
 
