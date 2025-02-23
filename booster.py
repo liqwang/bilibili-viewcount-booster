@@ -18,7 +18,6 @@ target = int(sys.argv[2])  # target view count
 # statistics tracking parameters
 successful_hits = 0  # count of successful proxy requests
 initial_view_count = 0  # starting view count
-last_view_count = 0  # view count from previous update
 
 def time(seconds: int) -> str:
     if seconds < 60:
@@ -92,7 +91,6 @@ try:
     info = requests.get(f'https://api.bilibili.com/x/web-interface/view?bvid={bv}',
                        headers={'User-Agent': UserAgent().random}).json()['data']
     initial_view_count = info['stat']['view']
-    last_view_count = initial_view_count
     current = initial_view_count
     print(f'Initial view count: {initial_view_count}')
 except Exception as e:
@@ -143,12 +141,11 @@ while True:
             print(f'{pbar(current, target, successful_hits, current - initial_view_count)} next round: {time(second)}          ', end='')
             sleep(1)
 
-final_increase = current - initial_view_count
 success_rate = (successful_hits / len(active_proxies)) * 100 if active_proxies else 0
 print(f'\nFinish at {datetime.now().strftime("%H:%M:%S")}')
 print(f'Statistics:')
 print(f'- Initial views: {initial_view_count}')
 print(f'- Final views: {current}')
-print(f'- Total increase: {final_increase}')
+print(f'- Total increase: {current - initial_view_count}')
 print(f'- Successful hits: {successful_hits}')
 print(f'- Success rate: {success_rate:.2f}%\n')
