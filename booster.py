@@ -38,15 +38,16 @@ print()
 day = date.today()
 while True:  # search for the latest day with proxies
     day = day - timedelta(days=1)
-    proxy_url = f'https://checkerproxy.net/api/archive/{day.strftime("%Y-%m-%d")}'
+    proxy_url = f'https://api.checkerproxy.net/v1/landing/archive/{day.strftime("%Y-%m-%d")}'
     print(f'getting proxies from {proxy_url} ...')
-    proxies = requests.get(proxy_url).json()
-    if len(proxies) > 0:
-        total_proxies = [proxy['addr'] for proxy in proxies]
+    response = requests.get(proxy_url)
+    if response.status_code == requests.codes.ok:
+        data = response.json()
+        total_proxies = data['data']['proxyList']
         print(f'successfully get {len(total_proxies)} proxies')
         break
     else:
-        print(f'no proxy')
+        print('no proxy')
 
 # 2.filter proxies by multi-threading
 active_proxies = []
