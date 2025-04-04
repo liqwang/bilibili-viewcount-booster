@@ -1,5 +1,6 @@
 import sys
 import threading
+import random
 from time import sleep
 from typing import Optional
 from datetime import date, datetime, timedelta
@@ -50,6 +51,11 @@ while True:  # search for the latest day with proxies
         print('no proxy')
 
 # 2.filter proxies by multi-threading
+if len(total_proxies) > 10000:
+    print('more than 10000 proxies, randomly pick 10000 proxies')
+    random.shuffle(total_proxies)
+    total_proxies = total_proxies[:10000]
+
 active_proxies = []
 count = 0
 def filter_proxys(proxies: 'list[str]') -> None:
