@@ -44,7 +44,7 @@ while True:  # search for the latest day with proxies
     response = requests.get(proxy_url)
     if response.status_code == requests.codes.ok:
         data = response.json()
-        total_proxies = data['data']['proxyList']
+        total_proxies = [proxy for proxy in data['data']['proxyList'].values() if proxy]
         print(f'successfully get {len(total_proxies)} proxies')
         break
     else:
