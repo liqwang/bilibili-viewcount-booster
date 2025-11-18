@@ -6,6 +6,7 @@ from typing import Optional
 from datetime import date, datetime, timedelta
 
 import requests
+from requests.exceptions import RequestException
 from fake_useragent import UserAgent
 
 # parameters
@@ -19,6 +20,128 @@ target = int(sys.argv[2])  # target view count
 # statistics tracking parameters
 successful_hits = 0  # count of successful proxy requests
 initial_view_count = 0  # starting view count
+
+
+def fetch_from_checkerproxy(min_count: int = 100, max_lookback_days: int = 7) -> list[str]:
+    day = date.today()
+    for _ in range(max_lookback_days):
+        day = day - timedelta(days=1)
+        proxy_url = f'https://api.checkerproxy.net/v1/landing/archive/{day.strftime("%Y-%m-%d")}'
+        print(f'getting proxies from {proxy_url} ...')
+        try:
+            response = requests.get(proxy_url, timeout=timeout)
+            response.raise_for_status()
+        except RequestException as err:
+            print(f'checkerproxy unavailable: {err}')
+            continue
+
+        data = response.json()
+        proxies_obj = data['data']['proxyList']
+        if isinstance(proxies_obj, list):
+            total_proxies = proxies_obj
+        elif isinstance(proxies_obj, dict):
+            total_proxies = [proxy for proxy in proxies_obj.values() if proxy]
+        else:
+            raise TypeError(f'Unexpected type of $.data.proxyList: {type(proxies_obj)}')
+
+        if len(total_proxies) >= min_count:
+            print(f'successfully get {len(total_proxies)} proxies from checkerproxy')
+            return total_proxies
+        print(f'only have {len(total_proxies)} proxies from checkerproxy')
+    return []
+
+
+def fetch_from_proxyscrape() -> list[str]:
+    proxy_url = ('https://api.proxyscrape.com/v2/?request=getproxies&protocol=http'
+                 '&timeout=2000&country=all')
+    print(f'getting proxies from {proxy_url} ...')
+    response = requests.get(proxy_url, timeout=timeout + 2)
+    response.raise_for_status()
+    proxies = [line.strip() for line in response.text.splitlines() if line.strip()]
+    print(f'successfully get {len(proxies)} proxies from proxyscrape')
+    return proxies
+
+
+def fetch_from_proxylistdownload() -> list[str]:
+    proxy_url = 'https://www.proxy-list.download/api/v1/get?type=http'
+    print(f'getting proxies from {proxy_url} ...')
+    response = requests.get(proxy_url, timeout=timeout + 2)
+    response.raise_for_status()
+    proxies = [line.strip() for line in response.text.splitlines() if line.strip()]
+    print(f'successfully get {len(proxies)} proxies from proxy-list.download')
+    return proxies
+
+
+def fetch_from_geonode(limit: int = 300) -> list[str]:
+    proxy_url = 'https://proxylist.geonode.com/api/proxy-list'
+    params = {
+        'limit': limit,
+        'page': 1,
+        'sort_by': 'lastChecked',
+        'sort_type': 'desc',
+        'protocols': 'http',
+    }
+    print(f'getting proxies from {proxy_url} ...')
+    response = requests.get(proxy_url, params=params, timeout=timeout + 2)
+    response.raise_for_status()
+    data = response.json().get('data', [])
+    proxies = [f"{item['ip']}:{item['port']}" for item in data if item.get('ip') and item.get('port')]
+    print(f'successfully get {len(proxies)} proxies from geonode')
+    return proxies
+
+
+def fetch_plaintext_proxy_list(url: str, label: str) -> list[str]:
+    print(f'getting proxies from {url} ...')
+    response = requests.get(url, timeout=max(timeout, 5))
+    response.raise_for_status()
+    proxies = [line.strip() for line in response.text.splitlines() if line.strip() and ':' in line]
+    print(f'successfully get {len(proxies)} proxies from {label}')
+    return proxies
+
+
+def fetch_from_speedx() -> list[str]:
+    return fetch_plaintext_proxy_list(
+        'https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt',
+        'TheSpeedX GitHub list')
+
+
+def fetch_from_monosans() -> list[str]:
+    return fetch_plaintext_proxy_list(
+        'https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt',
+        'monosans GitHub list')
+
+
+def get_total_proxies() -> list[str]:
+    fetchers = [
+        ('checkerproxy', fetch_from_checkerproxy),
+        ('proxyscrape', fetch_from_proxyscrape),
+        ('proxy-list.download', fetch_from_proxylistdownload),
+        ('geonode', fetch_from_geonode),
+        ('speedx', fetch_from_speedx),
+        ('monosans', fetch_from_monosans),
+    ]
+    collected: list[str] = []
+    seen: set[str] = set()
+    for name, fetcher in fetchers:
+        try:
+            proxies = fetcher()
+        except RequestException as err:
+            print(f'{name} source failed: {err}')
+            continue
+        except Exception as err:
+            print(f'{name} source error: {err}')
+            continue
+        for proxy in proxies:
+            if proxy and proxy not in seen:
+                seen.add(proxy)
+                collected.append(proxy)
+        if len(collected) >= 500:
+            break
+    if collected:
+        print(f'collected {len(collected)} proxies from available sources')
+        return collected
+    raise RuntimeError('failed to fetch proxies from all sources')
+
 
 def time(seconds: int) -> str:
     if seconds < 60:
@@ -36,31 +159,7 @@ def pbar(n: int, total: int, hits: Optional[int], view_increase: Optional[int]) 
 
 # 1.get proxy
 print()
-day = date.today()
-while True:  # search for the latest day with proxies
-    day = day - timedelta(days=1)
-    proxy_url = f'https://api.checkerproxy.net/v1/landing/archive/{day.strftime("%Y-%m-%d")}'
-    print(f'getting proxies from {proxy_url} ...')
-    response = requests.get(proxy_url)
-    if response.status_code == requests.codes.ok:
-        # 1.1 extract `total_proxies` from response
-        data = response.json()
-        proxies_obj = data['data']['proxyList']
-        if type(proxies_obj) is list:
-            total_proxies = proxies_obj
-        elif type(proxies_obj) is dict:
-            total_proxies = [proxy for proxy in data['data']['proxyList'].values() if proxy]
-        else:
-            raise TypeError(f'Unexpected type of $.data.proxyList: {type(proxies_obj)}')
-
-        # 1.2 check count of proxies
-        if len(total_proxies) > 100:
-            print(f'successfully get {len(total_proxies)} proxies')
-            break
-        else:
-            print(f'only have {len(total_proxies)} proxies')
-    else:
-        print('no proxy')
+total_proxies = get_total_proxies()
 
 # 2.filter proxies by multi-threading
 if len(total_proxies) > 10000:
