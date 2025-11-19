@@ -14,7 +14,7 @@ timeout = 3  # seconds for proxy connection timeout
 thread_num = 75  # thread count for filtering active proxies
 round_time = 305  # seconds for each round of view count boosting
 update_pbar_count = 10  # update view count progress bar for every xx proxies
-bv = sys.argv[1]  # video BV id
+bv = sys.argv[1]  # video BV/AV id (raw input)
 target = int(sys.argv[2])  # target view count
 
 # statistics tracking parameters
@@ -109,6 +109,42 @@ def fetch_from_monosans() -> list[str]:
     return fetch_plaintext_proxy_list(
         'https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt',
         'monosans GitHub list')
+
+
+def build_view_params(video_id: str) -> dict[str, str]:
+    """Return API query params for either BV or AV id."""
+    normalized = video_id.strip()
+    if not normalized:
+        raise ValueError('video id is empty')
+    lowered = normalized.lower()
+    if lowered.startswith('av'):
+        aid = normalized[2:]
+        if not aid.isdigit():
+            raise ValueError(f'invalid av id: {video_id}')
+        return {'aid': aid}
+    if normalized.isdigit():
+        return {'aid': normalized}
+    return {'bvid': normalized}
+
+
+def fetch_video_info(video_id: str) -> dict:
+    """Fetch video metadata and ensure API response is valid."""
+    params = build_view_params(video_id)
+    response = requests.get(
+        'https://api.bilibili.com/x/web-interface/view',
+        params=params,
+        headers={'User-Agent': UserAgent().random},
+        timeout=timeout + 2
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if payload.get('code') != 0 or 'data' not in payload:
+        msg = payload.get('message', 'unknown error')
+        raise RuntimeError(f'bilibili API error: code={payload.get("code")} message={msg}')
+    data = payload['data']
+    if not data.get('aid') or not data.get('bvid'):
+        raise RuntimeError('video info missing key identifiers')
+    return data
 
 
 def get_total_proxies() -> list[str]:
@@ -206,13 +242,14 @@ info = {}  # Initialize info dictionary
 
 # Get initial view count
 try:
-    info = requests.get(f'https://api.bilibili.com/x/web-interface/view?bvid={bv}',
-                       headers={'User-Agent': UserAgent().random}).json()['data']
+    info = fetch_video_info(bv)
+    bv = info['bvid']  # ensure BV id is normalized for later requests
     initial_view_count = info['stat']['view']
     current = initial_view_count
     print(f'Initial view count: {initial_view_count}')
 except Exception as e:
     print(f'Failed to get initial view count: {e}')
+    sys.exit(1)
 
 while True:
     reach_target = False
@@ -223,9 +260,7 @@ while True:
         try:
             if i % update_pbar_count == 0:  # update progress bar
                 print(f'{pbar(current, target, successful_hits, current - initial_view_count)} updating view count...', end='')
-                info = (requests.get(f'https://api.bilibili.com/x/web-interface/view?bvid={bv}',
-                                     headers={'User-Agent': UserAgent().random})
-                        .json()['data'])
+                info = fetch_video_info(bv)
                 current = info['stat']['view']
                 if current >= target:
                     reach_target = True
