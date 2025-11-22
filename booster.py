@@ -120,8 +120,7 @@ def get_total_proxies() -> list[str]:
         ('speedx', fetch_from_speedx),
         ('monosans', fetch_from_monosans),
     ]
-    collected: list[str] = []
-    seen: set[str] = set()
+    all_proxies: set[str] = set()
     for name, fetcher in fetchers:
         try:
             proxies = fetcher()
@@ -132,14 +131,12 @@ def get_total_proxies() -> list[str]:
             print(f'{name} source error: {err}')
             continue
         for proxy in proxies:
-            if proxy and proxy not in seen:
-                seen.add(proxy)
-                collected.append(proxy)
-        if len(collected) >= 500:
+            all_proxies.add(proxy)
+        if len(all_proxies) >= 500:
             break
-    if collected:
-        print(f'collected {len(collected)} proxies from available sources')
-        return collected
+    if all_proxies:
+        print(f'collected {len(all_proxies)} proxies from available sources')
+        return list(all_proxies)
     raise RuntimeError('failed to fetch proxies from all sources')
 
 
