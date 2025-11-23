@@ -215,7 +215,6 @@ def filter_proxys(proxies: 'list[str]') -> None:
             pass
         print(f'{pbar(count, len(total_proxies), hits=None, view_increase=None)} {100*count/len(total_proxies):.1f}%   ', end='')
 
-
 start_filter_time = datetime.now()
 print('\nfiltering active proxies using http://httpbin.org/post ...')
 thread_proxy_num = len(total_proxies) // thread_num
