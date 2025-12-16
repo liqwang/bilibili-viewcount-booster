@@ -295,16 +295,19 @@ def filter_proxys(proxies: 'list[str]') -> None:
     for proxy in proxies:
         count = count + 1
         try:
-            requests.post('http://httpbin.org/post',
+            # Use bilibili API to validate proxy, ensuring it's not banned by bilibili
+            # Using a lightweight GET request (e.g., view info) to test connectivity
+            requests.get('https://api.bilibili.com/x/web-interface/view?bvid=BV1gj411x7h7',  # Use a popular video for testing
                           proxies={'http': 'http://'+proxy},
-                          timeout=timeout)
+                          headers={'User-Agent': UserAgent().random},
+                          timeout=5)  # Slightly longer timeout for real-world testing
             active_proxies.append(proxy)
         except:  # proxy connect timeout
             pass
         print(f'{pbar(count, len(total_proxies), hits=None, view_increase=None)} {100*count/len(total_proxies):.1f}%   ', end='')
 
 start_filter_time = datetime.now()
-print('\nfiltering active proxies using http://httpbin.org/post ...')
+print('\nfiltering active proxies using bilibili API ...')
 thread_proxy_num = len(total_proxies) // thread_num
 threads = []
 for i in range(thread_num):
