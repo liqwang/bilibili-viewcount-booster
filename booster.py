@@ -1,6 +1,7 @@
 import sys
 import threading
 import random
+from queue import Queue
 from time import sleep
 from typing import Optional
 from datetime import date, datetime, timedelta
@@ -12,14 +13,17 @@ from fake_useragent import UserAgent
 # parameters
 timeout = 3  # seconds for proxy connection timeout
 thread_num = 75  # thread count for filtering active proxies
+boost_thread_num = 15  # thread count for concurrent view boosting requests
 round_time = 305  # seconds for each round of view count boosting
-update_pbar_count = 10  # update view count progress bar for every xx proxies
+update_pbar_count = 50  # update view count progress bar for every xx proxies
 bv = sys.argv[1]  # video BV/AV id (raw input)
 target = int(sys.argv[2])  # target view count
 
 # statistics tracking parameters
 successful_hits = 0  # count of successful proxy requests
 initial_view_count = 0  # starting view count
+reach_target = False  # flag to indicate if target view count is reached
+stats_lock = threading.Lock()  # lock for thread-safe statistics updates
 
 
 def fetch_from_checkerproxy(min_count: int = 100, max_lookback_days: int = 7) -> list[str]:
@@ -190,6 +194,90 @@ def pbar(n: int, total: int, hits: Optional[int], view_increase: Optional[int]) 
     else:
         return f'\r{n}/{total} {progress}{blank} [Hits: {hits}, Views+: {view_increase}]'
 
+
+def boost_view_worker(proxy_queue: Queue, video_info: dict, bvid: str, 
+                     total_proxies: int, target: int, initial_count: int) -> None:
+    """
+    Worker function to boost view count using proxies from queue.
+    Processes proxies concurrently until queue is empty or target reached.
+    """
+    global successful_hits, current, reach_target, info
+    
+    processed_count = 0
+    
+    while True:
+        # Check if target reached before processing next item
+        with stats_lock:
+            if reach_target:
+                break
+        
+        try:
+            # Get proxy and index from queue (timeout to allow checking for completion)
+            item = proxy_queue.get(timeout=1)
+            proxy, proxy_index = item
+            
+            # Add random delay to simulate real user behavior (0.1-0.3 seconds)
+            sleep(random.uniform(0.1, 0.3))
+            
+            # Check if we need to update progress bar and view count
+            with stats_lock:
+                processed_count += 1
+                should_update = (processed_count % update_pbar_count == 0)
+            
+            if should_update:
+                try:
+                    new_info = fetch_video_info(bv)
+                    with stats_lock:
+                        info = new_info
+                        current = info['stat']['view']
+                        if current >= target:
+                            reach_target = True
+                except:
+                    pass
+            
+            # Check if target reached after update
+            with stats_lock:
+                if reach_target:
+                    proxy_queue.task_done()
+                    break
+            
+            try:
+                requests.post('http://api.bilibili.com/x/click-interface/click/web/h5',
+                              proxies={'http': 'http://' + proxy},
+                              headers={'User-Agent': UserAgent().random},
+                              timeout=timeout,
+                              data={
+                                  'aid': video_info['aid'],
+                                  'cid': video_info['cid'],
+                                  'bvid': bvid,
+                                  'part': '1',
+                                  'mid': video_info['owner']['mid'],
+                                  'jsonp': 'jsonp',
+                                  'type': video_info['desc_v2'][0]['type'] if video_info['desc_v2'] else '1',
+                                  'sub_type': '0'
+                              })
+                
+                # Thread-safe update of successful_hits
+                with stats_lock:
+                    successful_hits += 1
+                    hits = successful_hits
+                    view_increase = current - initial_count
+                
+                print(f'{pbar(current, target, hits, view_increase)} proxy({proxy_index+1}/{total_proxies}) success   ', end='')
+            except:  # proxy connect timeout or other errors
+                with stats_lock:
+                    hits = successful_hits
+                    view_increase = current - initial_count
+                print(f'{pbar(current, target, hits, view_increase)} proxy({proxy_index+1}/{total_proxies}) fail      ', end='')
+            
+            proxy_queue.task_done()
+                    
+        except:  # Queue timeout (empty) or other errors
+            # If queue is empty and no more items, exit
+            if proxy_queue.empty():
+                break
+            continue
+
 # 1.get proxy
 print()
 total_proxies = get_total_proxies()
@@ -248,46 +336,55 @@ except Exception as e:
     sys.exit(1)
 
 while True:
-    reach_target = False
+    with stats_lock:
+        reach_target = False
     start_time = datetime.now()
     
-    # send POST click request for each proxy
+    # Create queue and add all proxies with their indices
+    proxy_queue = Queue()
     for i, proxy in enumerate(active_proxies):
+        proxy_queue.put((proxy, i))
+    
+    # Create and start worker threads
+    threads = []
+    for _ in range(boost_thread_num):
+        thread = threading.Thread(target=boost_view_worker, 
+                                 args=(proxy_queue, info, bv, len(active_proxies), target, initial_view_count))
+        thread.start()
+        threads.append(thread)
+    
+    # Wait for all threads to complete
+    for thread in threads:
+        thread.join()
+    
+    # Check if target reached before waiting for queue
+    with stats_lock:
+        target_reached = reach_target
+    
+    if not target_reached:
+        # Wait for queue to be fully processed only if target not reached
+        proxy_queue.join()
+        
+        # Final check of view count
         try:
-            if i % update_pbar_count == 0:  # update progress bar
-                print(f'{pbar(current, target, successful_hits, current - initial_view_count)} updating view count...', end='')
-                info = fetch_video_info(bv)
+            info = fetch_video_info(bv)
+            with stats_lock:
                 current = info['stat']['view']
                 if current >= target:
                     reach_target = True
-                    print(f'{pbar(current, target, successful_hits, current - initial_view_count)} done                 ', end='')
-                    break
-
-            requests.post('http://api.bilibili.com/x/click-interface/click/web/h5',
-                          proxies={'http': 'http://'+proxy},
-                          headers={'User-Agent': UserAgent().random},
-                          timeout=timeout,
-                          data={
-                              'aid': info['aid'],
-                              'cid': info['cid'],
-                              'bvid': bv,
-                              'part': '1',
-                              'mid': info['owner']['mid'],
-                              'jsonp': 'jsonp',
-                              'type': info['desc_v2'][0]['type'] if info['desc_v2'] else '1',
-                              'sub_type': '0'
-                          })
-            successful_hits += 1
-            print(f'{pbar(current, target, successful_hits, current - initial_view_count)} proxy({i+1}/{len(active_proxies)}) success   ', end='')
-        except:  # proxy connect timeout
-            print(f'{pbar(current, target, successful_hits, current - initial_view_count)} proxy({i+1}/{len(active_proxies)}) fail      ', end='')
-
-    if reach_target:  # reach target view count
+                    target_reached = True
+        except:
+            pass
+    
+    if target_reached:  # reach target view count
         break
     remain_seconds = int(round_time-(datetime.now()-start_time).total_seconds())
     if remain_seconds > 0:
         for second in reversed(range(remain_seconds)):
-            print(f'{pbar(current, target, successful_hits, current - initial_view_count)} next round: {time(second)}          ', end='')
+            with stats_lock:
+                hits = successful_hits
+                view_increase = current - initial_view_count
+            print(f'{pbar(current, target, hits, view_increase)} next round: {time(second)}          ', end='')
             sleep(1)
 
 success_rate = (successful_hits / len(active_proxies)) * 100 if active_proxies else 0
